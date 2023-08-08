@@ -24,7 +24,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/storage/names"
@@ -39,18 +39,14 @@ import (
 
 const (
 	// DefaultServiceAccountName is the name of the default service account to set on pods which do not specify a service account
-	DefaultServiceAccountName = "default"
-
-	// EnforceMountableSecretsAnnotation is a default annotation that indicates that a service account should enforce mountable secrets.
-	// The value must be true to have this annotation take effect
-	EnforceMountableSecretsAnnotation = "kubernetes.io/enforce-mountable-secrets"
+	DefaultServiceAccountName = "default" // #nosec G101
 
 	// ServiceAccountVolumeName is the prefix name that will be added to volumes that mount ServiceAccount secrets
-	ServiceAccountVolumeName = "kube-api-access"
+	ServiceAccountVolumeName = "kube-api-access" // #nosec G101
 
 	// DefaultAPITokenMountPath is the path that ServiceAccountToken secrets are automounted to.
 	// The token file would then be accessible at /var/run/secrets/kubernetes.io/serviceaccount
-	DefaultAPITokenMountPath = "/var/run/secrets/kubernetes.io/serviceaccount"
+	DefaultAPITokenMountPath = "/var/run/secrets/kubernetes.io/serviceaccount" // #nosec G101
 
 	defaultAttemptTimes = 10
 )
@@ -121,7 +117,7 @@ func (p *PodKubeApiAccessMutatorPlugin) getServiceAccount(namespace string, name
 	if err == nil {
 		return serviceAccount, nil
 	}
-	if !errors.IsNotFound(err) {
+	if !apierrors.IsNotFound(err) {
 		return nil, err
 	}
 
@@ -131,7 +127,7 @@ func (p *PodKubeApiAccessMutatorPlugin) getServiceAccount(namespace string, name
 		// If this is the default serviceaccount, attempt more times, since it should be auto-created by the controller
 		numAttempts = defaultAttemptTimes
 	}
-	retryInterval := time.Duration(rand.Int63n(100)+int64(100)) * time.Millisecond
+	retryInterval := time.Duration(rand.Int63n(100)+int64(100)) * time.Millisecond // #nosec G404
 	for i := 0; i < numAttempts; i++ {
 		if i != 0 {
 			time.Sleep(retryInterval)
@@ -140,12 +136,12 @@ func (p *PodKubeApiAccessMutatorPlugin) getServiceAccount(namespace string, name
 		if err == nil {
 			return serviceAccount, nil
 		}
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}
 	}
 
-	return nil, errors.NewNotFound(corev1.Resource("serviceaccount"), name)
+	return nil, apierrors.NewNotFound(corev1.Resource("serviceaccount"), name)
 }
 
 func (p *PodKubeApiAccessMutatorPlugin) getSecret(cluster, namespace string, sa *corev1.ServiceAccount) (*corev1.Secret, error) {
