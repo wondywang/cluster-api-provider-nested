@@ -53,29 +53,29 @@ const (
 
 func init() {
 	MutatorRegister.Register(&uplugin.Registration{
-		ID: "00_PodKubeApiAccessMutator",
+		ID: "00_PodKubeAPIAccessMutator",
 		InitFn: func(ctx *uplugin.InitContext) (interface{}, error) {
-			return NewPodKubeApiAccessMutatorPlugin(ctx)
+			return NewPodKubeAPIAccessMutatorPlugin(ctx)
 		},
 	})
 }
 
-type PodKubeApiAccessMutatorPlugin struct {
+type PodKubeAPIAccessMutatorPlugin struct {
 	client       kubernetes.Interface
 	generateName func(string) string
 }
 
-func NewPodKubeApiAccessMutatorPlugin(ctx *uplugin.InitContext) (*PodKubeApiAccessMutatorPlugin, error) {
-	plugin := &PodKubeApiAccessMutatorPlugin{
+func NewPodKubeAPIAccessMutatorPlugin(ctx *uplugin.InitContext) (*PodKubeAPIAccessMutatorPlugin, error) {
+	plugin := &PodKubeAPIAccessMutatorPlugin{
 		client:       ctx.Client,
 		generateName: names.SimpleNameGenerator.GenerateName,
 	}
 	return plugin, nil
 }
 
-func (pl *PodKubeApiAccessMutatorPlugin) Mutator() conversion.PodMutator {
+func (pl *PodKubeAPIAccessMutatorPlugin) Mutator() conversion.PodMutator {
 	return func(p *conversion.PodMutateCtx) error {
-		if !featuregate.DefaultFeatureGate.Enabled(featuregate.KubeApiAccessSupport) {
+		if !featuregate.DefaultFeatureGate.Enabled(featuregate.KubeAPIAccessSupport) {
 			return nil
 		}
 
@@ -112,8 +112,8 @@ func (pl *PodKubeApiAccessMutatorPlugin) Mutator() conversion.PodMutator {
 }
 
 // getServiceAccount returns the ServiceAccount for the given namespace and name if it exists
-func (p *PodKubeApiAccessMutatorPlugin) getServiceAccount(namespace string, name string) (*corev1.ServiceAccount, error) {
-	serviceAccount, err := p.client.CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+func (pl *PodKubeAPIAccessMutatorPlugin) getServiceAccount(namespace string, name string) (*corev1.ServiceAccount, error) {
+	serviceAccount, err := pl.client.CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err == nil {
 		return serviceAccount, nil
 	}
@@ -132,7 +132,7 @@ func (p *PodKubeApiAccessMutatorPlugin) getServiceAccount(namespace string, name
 		if i != 0 {
 			time.Sleep(retryInterval)
 		}
-		serviceAccount, err := p.client.CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		serviceAccount, err := pl.client.CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err == nil {
 			return serviceAccount, nil
 		}
@@ -144,8 +144,8 @@ func (p *PodKubeApiAccessMutatorPlugin) getServiceAccount(namespace string, name
 	return nil, apierrors.NewNotFound(corev1.Resource("serviceaccount"), name)
 }
 
-func (p *PodKubeApiAccessMutatorPlugin) getSecret(cluster, namespace string, sa *corev1.ServiceAccount) (*corev1.Secret, error) {
-	secrets, err := p.client.CoreV1().Secrets(namespace).List(context.Background(), metav1.ListOptions{})
+func (pl *PodKubeAPIAccessMutatorPlugin) getSecret(cluster, namespace string, sa *corev1.ServiceAccount) (*corev1.Secret, error) {
+	secrets, err := pl.client.CoreV1().Secrets(namespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		klog.Errorf("error listing secret from super control plane informer cache: %v", err)
 		return nil, err
@@ -165,9 +165,9 @@ func (p *PodKubeApiAccessMutatorPlugin) getSecret(cluster, namespace string, sa 
 	return nil, nil
 }
 
-func (p *PodKubeApiAccessMutatorPlugin) mountServiceAccountToken(secret *corev1.Secret, pod *corev1.Pod) {
+func (pl *PodKubeAPIAccessMutatorPlugin) mountServiceAccountToken(secret *corev1.Secret, pod *corev1.Pod) {
 	// Determine a volume name for the ServiceAccountTokenSecret in case we need it
-	tokenVolumeName := p.generateName(ServiceAccountVolumeName + "-")
+	tokenVolumeName := pl.generateName(ServiceAccountVolumeName + "-")
 	klog.V(4).Infof("generate a new VolumeMount.name: %s", tokenVolumeName)
 
 	// Create the prototypical VolumeMount
@@ -192,7 +192,7 @@ func (p *PodKubeApiAccessMutatorPlugin) mountServiceAccountToken(secret *corev1.
 							Projected: TokenVolumeSource(secret),
 						},
 					}
-					p.MutateAutoKubeApiAccessVolumeMounts(volume.Name, tokenVolumeName, pod)
+					pl.MutateAutoKubeAPIAccessVolumeMounts(volume.Name, tokenVolumeName, pod)
 					serviceAccountVolumeExist = true
 					break
 				}
@@ -230,7 +230,7 @@ func (p *PodKubeApiAccessMutatorPlugin) mountServiceAccountToken(secret *corev1.
 	}
 }
 
-func (p *PodKubeApiAccessMutatorPlugin) MutateAutoKubeApiAccessVolumeMounts(old, new string, pod *corev1.Pod) {
+func (pl *PodKubeAPIAccessMutatorPlugin) MutateAutoKubeAPIAccessVolumeMounts(old, new string, pod *corev1.Pod) {
 	for i, container := range pod.Spec.InitContainers {
 		for j := 0; j < len(container.VolumeMounts); j++ {
 			if container.VolumeMounts[j].Name == old {
