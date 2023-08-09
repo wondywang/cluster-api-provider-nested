@@ -89,9 +89,9 @@ const (
 	// So that vService can be resolved by using the k8s_external plugin in coredns.
 	VServiceExternalIP = "VServiceExternalIP"
 
-	// KubeApiAccessSupport is an experimental feature that allows clusters +1.21 to support
+	// KubeAPIAccessSupport is an experimental feature that allows clusters +1.21 to support
 	// kube-api-access volume mount
-	KubeApiAccessSupport = "KubeApiAccessSupport"
+	KubeAPIAccessSupport = "KubeAPIAccessSupport"
 )
 
 var defaultFeatures = FeatureList{
@@ -107,7 +107,7 @@ var defaultFeatures = FeatureList{
 	DisableCRDPreserveUnknownFields: {Default: false},
 	RootCACertConfigMapSupport:      {Default: false},
 	VServiceExternalIP:              {Default: false},
-	KubeApiAccessSupport:            {Default: false},
+	KubeAPIAccessSupport:            {Default: false},
 }
 
 type Feature string
