@@ -34,7 +34,7 @@ import (
 	uplugin "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/util/plugin"
 )
 
-func tenantKubeApiAccessPod(name, namespace, uid string) *corev1.Pod {
+func tenantKubeAPIAccessPod(name, namespace, uid string) *corev1.Pod {
 	p := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -108,8 +108,8 @@ func tenantKubeApiAccessPod(name, namespace, uid string) *corev1.Pod {
 	return p
 }
 
-func TestPodKubeApiAccessMutatorPlugin_Mutator(t *testing.T) {
-	defer util.SetFeatureGateDuringTest(t, featuregate.DefaultFeatureGate, featuregate.RootCACertConfigMapSupport, true)()
+func TestPodKubeAPIAccessMutatorPlugin_Mutator(t *testing.T) {
+	defer util.SetFeatureGateDuringTest(t, featuregate.DefaultFeatureGate, featuregate.KubeAPIAccessSupport, true)()
 
 	tests := []struct {
 		name                  string
@@ -118,7 +118,7 @@ func TestPodKubeApiAccessMutatorPlugin_Mutator(t *testing.T) {
 	}{
 		{
 			"Test RootCACert Mutator",
-			tenantKubeApiAccessPod("test", "default", "123-456-789"),
+			tenantKubeAPIAccessPod("test", "default", "123-456-789"),
 			[]runtime.Object{
 				&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
@@ -149,14 +149,13 @@ func TestPodKubeApiAccessMutatorPlugin_Mutator(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			featuregate.DefaultFeatureGate, _ = featuregate.NewFeatureGate(map[string]bool{featuregate.KubeApiAccessSupport: true})
 			client := fake.NewSimpleClientset(tt.existingObjectInSuper...)
 			informer := informers.NewSharedInformerFactory(client, 0)
 			ctx := &uplugin.InitContext{
 				Client:   client,
 				Informer: informer,
 			}
-			pl, err := NewPodKubeApiAccessMutatorPlugin(ctx)
+			pl, err := NewPodKubeAPIAccessMutatorPlugin(ctx)
 			if err != nil {
 				t.Errorf("mutator failed processing the pod")
 			}
@@ -166,10 +165,10 @@ func TestPodKubeApiAccessMutatorPlugin_Mutator(t *testing.T) {
 				t.Errorf("mutator failed processing the pod, %v", err)
 			}
 
-			kubeApiAccessVolume := ""
+			kubeAPIAccessVolume := ""
 			for _, volume := range tt.pPod.Spec.Volumes {
 				if strings.HasPrefix(volume.Name, ServiceAccountVolumeName) && volume.Projected != nil {
-					kubeApiAccessVolume = volume.Name
+					kubeAPIAccessVolume = volume.Name
 					for _, source := range volume.Projected.Sources {
 						if source.Secret == nil {
 							t.Errorf("tt.pPod.Spec.Volumes[*].Name = %v, want to mount secret, but nil", volume.Name)
@@ -180,24 +179,24 @@ func TestPodKubeApiAccessMutatorPlugin_Mutator(t *testing.T) {
 			for c := range tt.pPod.Spec.Containers {
 				found := false
 				for e := range tt.pPod.Spec.Containers[c].VolumeMounts {
-					if tt.pPod.Spec.Containers[c].VolumeMounts[e].Name == kubeApiAccessVolume {
+					if tt.pPod.Spec.Containers[c].VolumeMounts[e].Name == kubeAPIAccessVolume {
 						found = true
 					}
 				}
 				if !found {
-					t.Errorf("tt.pPod.Spec.Containers[c].VolumeMounts[e] want to mount %s, but not found", kubeApiAccessVolume)
+					t.Errorf("tt.pPod.Spec.Containers[c].VolumeMounts[e] want to mount %s, but not found", kubeAPIAccessVolume)
 				}
 			}
 
 			for c := range tt.pPod.Spec.InitContainers {
 				found := false
 				for e := range tt.pPod.Spec.InitContainers[c].VolumeMounts {
-					if tt.pPod.Spec.InitContainers[c].VolumeMounts[e].Name == kubeApiAccessVolume {
+					if tt.pPod.Spec.InitContainers[c].VolumeMounts[e].Name == kubeAPIAccessVolume {
 						found = true
 					}
 				}
 				if !found {
-					t.Errorf("tt.pPod.Spec.InitContainers[c].VolumeMounts[e] want to mount %s, but not found", kubeApiAccessVolume)
+					t.Errorf("tt.pPod.Spec.InitContainers[c].VolumeMounts[e] want to mount %s, but not found", kubeAPIAccessVolume)
 				}
 			}
 		})
