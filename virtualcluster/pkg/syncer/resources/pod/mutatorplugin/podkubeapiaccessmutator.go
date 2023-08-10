@@ -102,7 +102,6 @@ func (pl *PodKubeAPIAccessMutatorPlugin) Mutator() conversion.PodMutator {
 			klog.Errorf("not found serviceAccount %s/%s token secret, err: %v", targetNamespace, p.PPod.Spec.ServiceAccountName, err)
 			return fmt.Errorf("error looking up secret of serviceAccount %s/%s: %v", targetNamespace, p.PPod.Spec.ServiceAccountName, err)
 		}
-		klog.V(6).Infof("mutate pod: %s/%s, found service account: %s, secret: %s", targetNamespace, p.PPod.Name, serviceAccount.Name, secret.Name)
 
 		if shouldAutomount(serviceAccount, p.PPod) {
 			pl.mountServiceAccountToken(secret, p.PPod)
