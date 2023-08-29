@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/apis/config"
 	"sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/manager"
 	pa "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/patrol"
+	"sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/resources/serviceaccount/token"
 	mc "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/util/mccontroller"
 	"sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/util/plugin"
 )
@@ -47,8 +48,9 @@ type controller struct {
 	// super control plane sa client
 	saClient v1core.CoreV1Interface
 	// super control plane sa lister/synced function
-	saLister listersv1.ServiceAccountLister
-	saSynced cache.InformerSynced
+	saLister     listersv1.ServiceAccountLister
+	saSynced     cache.InformerSynced
+	tokenManager *token.Manager
 }
 
 func NewServiceAccountController(config *config.SyncerConfiguration,

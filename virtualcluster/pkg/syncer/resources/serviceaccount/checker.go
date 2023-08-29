@@ -98,6 +98,15 @@ func (c *controller) PatrollerDo() {
 			d.OnDelete(pObj)
 			return
 		}
+
+		// check if token exist
+		if len(v.Secrets) == 0 {
+			if err := c.MultiClusterController.RequeueObject(vObj.OwnerCluster, vObj.Object); err != nil {
+				klog.Errorf("error requeue vServiceAccount %s in cluster %s: %v", vObj.Key, vObj.GetOwnerCluster(), err)
+			} else {
+				metrics.CheckerRemedyStats.WithLabelValues("RequeuedTenantServiceAccounts").Inc()
+			}
+		}
 	}
 	d.DeleteFunc = func(pObj differ.ClusterObject) {
 		deleteOptions := &metav1.DeleteOptions{}

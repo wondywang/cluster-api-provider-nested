@@ -18,8 +18,11 @@ package serviceaccount
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
-
+	
+	pkgerr "github.com/pkg/errors"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -125,7 +128,13 @@ func (c *controller) reconcileServiceAccountUpdate(clusterName, targetNamespace,
 		return fmt.Errorf("pServiceAccount %s/%s delegated UID is different from updated object", targetNamespace, pSa.Name)
 	}
 
-	// do nothing.
+	// check if token exist or make a TokenRequest
+	if len(vSa.Secrets) == 0 {
+		if err := c.TokenRequest(clusterName, vSa); err != nil {
+			klog.Errorf("serviceAccount %s/%s token request failed! %v", vSa.Namespace, vSa.Name, err)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -142,4 +151,63 @@ func (c *controller) reconcileServiceAccountRemove(clusterName, targetNamespace,
 		return nil
 	}
 	return err
+}
+
+func (c *controller) TokenRequest(clusterName string, sa *corev1.ServiceAccount) error {
+	tenantClient, err := c.MultiClusterController.GetClusterClient(clusterName)
+	if err != nil {
+		return pkgerr.Wrapf(err, "failed to create client from cluster %s config", clusterName)
+	}
+	expiration := int64(10 * 365 * 24 * 3600) // 10 years
+	tr := &authenticationv1.TokenRequest{
+		Spec: authenticationv1.TokenRequestSpec{
+			ExpirationSeconds: &expiration,
+		},
+	}
+
+	cm, err := tenantClient.CoreV1().ConfigMaps(sa.Namespace).Get(context.TODO(), constants.RootCACertConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		klog.Errorf("get configmap %s/%s failed! %v", sa.Namespace, constants.RootCACertConfigMapName, err)
+	}
+
+	tokenRequest, err := tenantClient.CoreV1().ServiceAccounts(sa.Namespace).CreateToken(context.TODO(), sa.Name, tr, metav1.CreateOptions{})
+	if apierrors.IsNotFound(err) {
+		return fmt.Errorf("the API server does not have TokenRequest endpoints enabled")
+	}
+	secret := &corev1.Secret{}
+	secret.Type = corev1.SecretTypeServiceAccountToken
+	annotations := secret.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	annotations[corev1.ServiceAccountNameKey] = sa.Name
+	annotations[corev1.ServiceAccountUIDKey] = string(sa.UID)
+	secret.SetAnnotations(annotations)
+	secret.Name = ""
+	secret.Namespace = sa.Namespace
+	secret.GenerateName = sa.Name + "-token-"
+	secret.Data = map[string][]byte{
+		"token":     []byte(tokenRequest.Status.Token),
+		"namespace": []byte(sa.Namespace),
+		"ca.crt":    []byte(base64.StdEncoding.EncodeToString([]byte(cm.Data["ca.crt"]))),
+	}
+	secret, err = tenantClient.CoreV1().Secrets(secret.Namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+	if err != nil {
+		klog.Errorf("create secret %s/%s token request failed! %v", secret.Namespace, secret.Name, err)
+		return err
+	}
+
+	if sa.Secrets == nil {
+		sa.Secrets = make([]corev1.ObjectReference, 1)
+	}
+	sa.Secrets[0] = corev1.ObjectReference{
+		Name: secret.Name,
+	}
+	_, err = tenantClient.CoreV1().ServiceAccounts(sa.Namespace).Update(context.TODO(), sa, metav1.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("update serviceAccount %s/%s token failed! %v", sa.Namespace, sa.Name, err)
+		return err
+	}
+	return nil
 }
